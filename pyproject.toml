@@ -1,0 +1,10 @@
+[project]
+name = "fly-in-new"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.13.5",
+    "pytest>=9.1.1",
+]
