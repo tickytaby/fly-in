@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from enum import Enum
 import pytest
+import heapq
 
 
 class ZoneType(Enum):
@@ -174,6 +175,52 @@ class Map(BaseModel):
     #   Capacity values (max_drones, max_link_cap) must be positive ints.
     #   Any other parsing error must stop the program and return a clear error message indicating the line and cause
 
+    # Implementation of dijkstra to get the minimum possible # of turns to get one drone from source to sink
+    def run_dijkstra(self, reverse: bool = False) -> tuple[dict[str, int], dict[str, str | None], int]: 
+       # From start, we want to visit each neighbor, set tentative values for cost to get there. 
+       # Then visit new neighbors, in order of the min-heap (least cost guess)
+       inf: int = 10 ** 9
+       dist: dict[str, int] = {self.start_hub: 0}
+       parent: dict[str, str | None] = {self.start_hub: None}
+       settled: set[str] = set()
+
+       heap: list[tuple[int, str]] = [(0, self.start_hub)]
+
+       while heap:
+           d, zone = heapq.heappop(heap)
+
+           if zone in settled:
+               continue
+           settled.add(zone)
+
+           if zone == self.end_hub:
+               break
+
+           for nb in self.hubs[zone].conns:
+               if self.hubs[nb].metadata.zone == ZoneType.BLOCKED or nb in settled:
+                   continue
+
+               entered = zone if reverse else nb
+               cost = 2 if self.hubs[entered].metadata.zone == ZoneType.RESTRICTED else 1
+               new_d = d + cost
+
+               if new_d < dist.get(nb, inf):
+                   dist[nb] = new_d
+                   parent[nb] = zone
+                   heapq.heappush(heap, (new_d, nb))
+
+       return dist, parent, dist[self.end_hub]
+
+    @classmethod
+    def _rebuild_path(cls, parent: dict[str, str | None], target: str) -> list[str]:
+        path: list[str] = []
+        node: str | None = target
+        while node is not None:
+            path.append(node)
+            node = parent.get(node)
+        return path[::-1]
+
+
     @classmethod
     def get_from_file(cls, path: str) -> "Map":
         try:
@@ -280,11 +327,17 @@ class Map(BaseModel):
 
 def main():
     try:
-        mp = Map.get_from_file("./maps/easy/01_linear_path.txt")
+        mp = Map.get_from_file("./maps/challenger/01_the_impossible_dream.txt")
         mp.display()
+        _, parent, cost = mp.run_dijkstra()
+        shortest_path = Map._rebuild_path(parent, mp.end_hub) 
+        print(f"The cost from source to sink is {cost}")
+        for zone in shortest_path:
+            print(f"->{zone}", end="")
     except Exception as e:
         print(e)
 
+    print()
     try:
         print(Map.get_from_file("./maps/easy/bad_01_linear_path.txt"))
     except Exception as e:
