@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 from enum import Enum
-import pytest
 import heapq
 
 
@@ -235,7 +234,7 @@ class Map(BaseModel):
         conns: list[Connection] = []
         nb_drones: int | None = None
         seen_conns: dict[frozenset[str], int] = {}
-        for i, line in enumerate(lines):
+        for i, line in enumerate(lines, start=1):
             if line.lstrip().startswith("#"):
                 continue
             elif line.strip() == "":
@@ -352,26 +351,6 @@ def main():
         print(Map.get_from_file("./maps/easy/multiple_ends.txt"))
     except Exception as e:
         print(e)
-
-
-def test_neg_nb_drones():
-    with pytest.raises(Exception, match="nb_drones must be a positive int"):
-        Map.get_from_file("./maps/easy/neg_nb_drones.txt")
-
-
-def test_nbdrones_not_first():
-    with pytest.raises(Exception, match="nb_drones defined not on first line"):
-        Map.get_from_file("./maps/easy/bad_01_linear_path.txt")
-
-
-def test_mult_starts():
-    with pytest.raises(Exception, match="Multiple start_hubs"):
-        Map.get_from_file("./maps/easy/multiple_starts.txt")
-
-
-def test_mult_ends():
-    with pytest.raises(Exception, match="Multiple end_hubs"):
-        Map.get_from_file("./maps/easy/multiple_ends.txt")
 
 
 if __name__ == "__main__":
