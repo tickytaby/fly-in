@@ -12,3 +12,13 @@ dependencies = [
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "flake8>=7.4.1",
+    "mypy>=2.3.1",
+]
+
+[tool.mypy]
+mypy_path = "src"
+exclude = ["^\\.venv/"]

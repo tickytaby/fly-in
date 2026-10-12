@@ -1,3 +1,4 @@
+from typing import Any
 from pydantic import BaseModel, Field
 from enum import Enum
 import heapq
@@ -31,34 +32,40 @@ class Connection(BaseModel):
         ls = conn.split(maxsplit=1)
         if not 1 <= len(ls) <= 2:
             raise Exception(
-                f"Error: Line #{line} -> expecting shape 'hub1-hub2 [optional_metadata]' got {conn}"
+                f"Error: Line #{line} -> expecting shape 'hub1-hub2 "
+                f"[optional_metadata]' got {conn}"
             )
         try:
             hub1, hub2 = ls[0].split("-")
         except Exception:
             raise Exception(
-                f"Error: Line #{line} -> expecting shape 'hub1-hub2 [optional_metadata]' got {conn}"
+                f"Error: Line #{line} -> expecting shape 'hub1-hub2 "
+                f"[optional_metadata]' got {conn}"
             )
         if len(ls) == 1:
             return Connection(h1=hub1, h2=hub2)
         try:
             if not (ls[1].startswith("[") and ls[1].endswith("]")):
                 raise Exception(
-                    f"Error: Line #{line} -> metadata key=value pairs must be enclosed by []"
+                    f"Error: Line #{line} -> metadata key=value pairs"
+                    " must be enclosed by []"
                 )
             metadata = ls[1][1:-1].split("=", 1)
             if metadata[0].strip() != "max_link_capacity":
                 raise Exception(
-                    f"Error: Line #{line} -> invalid metadata, expecting [max_link_capacity=int] got {ls[1]}"
+                    f"Error: Line #{line} -> invalid metadata, expecting "
+                    f"[max_link_capacity=int] got {ls[1]}"
                 )
             max_link_cap = int(metadata[1])
             if max_link_cap <= 0:
                 raise Exception(
-                    f"Error: Line #{line} -> max capacity value must be positive int, got {ls[1]}"
+                    f"Error: Line #{line} -> max capacity value must be positive"
+                    f" int, got {ls[1]}"
                 )
         except ValueError:
             raise Exception(
-                f"Error: Line #{line} -> max capacitiy value must be positive int, got {ls[1]}"
+                f"Error: Line #{line} -> max capacitiy value must be positive "
+                f"int, got {ls[1]}"
             )
         return Connection(h1=hub1, h2=hub2, max_link_cap=max_link_cap)
 
@@ -75,7 +82,8 @@ class Hub(BaseModel):
         allowed_keys = set(["zone", "color", "max_drones"])
         if not (meta.startswith("[") and meta.endswith("]")):
             raise Exception(
-                f"Error: Line #{line} -> malformed metadata, key value pairs must be enclosed by []"
+                f"Error: Line #{line} -> malformed metadata, key value pairs "
+                "must be enclosed by []"
             )
         met = meta[1:-1].split()
         try:
@@ -84,7 +92,7 @@ class Hub(BaseModel):
             raise Exception(
                 f"Error: Line #{line} -> expected [key=val,..] for metadata, got {meta}"
             )
-        mid = {}
+        mid: dict[str, Any] = {}
         for item in cleaned:
             if len(item) != 2:
                 raise Exception(
@@ -94,7 +102,8 @@ class Hub(BaseModel):
                 raise Exception(f"Error: Line #{line} -> duplicate key for {item[0]}")
             if item[0] not in allowed_keys:
                 raise Exception(
-                    f"Error: Line #{line} -> {item[0]} not in allowed metadata fields ({allowed_keys})"
+                    f"Error: Line #{line} -> {item[0]} not in allowed metadata"
+                    f" fields ({allowed_keys})"
                 )
             if item[0] == "zone":
                 try:
@@ -102,20 +111,23 @@ class Hub(BaseModel):
                     continue
                 except Exception:
                     raise Exception(
-                        f"Error: Line #{line} -> {item[1]} it not a valid Zone Type ('normal', 'blocked', 'restricted', 'priority')"
+                        f"Error: Line #{line} -> {item[1]} it not a valid Zone Type "
+                        "('normal', 'blocked', 'restricted', 'priority')"
                     )
             if item[0] == "max_drones":
                 try:
                     val = int(item[1])
                     if val <= 0:
                         raise Exception(
-                            f"Error: Line #{line} -> {item[1]} is not a valid max_drones value (must be positive int)"
+                            f"Error: Line #{line} -> {item[1]} is not a valid"
+                            " max_drones value (must be positive int)"
                         )
                     mid[item[0]] = val
                     continue
                 except ValueError:
                     raise Exception(
-                        f"Error: Line #{line} -> max_drones must be a positive int, got {item[1]}"
+                        f"Error: Line #{line} -> max_drones must be a positive"
+                        f" int, got {item[1]}"
                     )
             mid[item[0]] = item[1]
         return HubMetadata(**mid)
@@ -148,7 +160,7 @@ class Map(BaseModel):
     hubs: dict[str, Hub]
     conns: list[Connection]
 
-    def display(self):
+    def display(self) -> None:
         print(
             f"nb_drones: {self.nb_drones}\n\n"
             f"start_hub: {self.start_hub}\n\n"
@@ -161,54 +173,46 @@ class Map(BaseModel):
             print(f"{conn.h1}-{conn.h2} w/ max_link_cap={conn.max_link_cap}")
         print()
 
-    # Parser constraints
-    #   1st line MUST define the number of drones using nb_drones: <positive int>
-    #   The program must be able to handle any number of drones
-    #   There MUST be exactly one start_hub and one end_hub
-    #   Each zone must have a UNIQUE NAME and valid integer coordinates
-    #   Zone names can use ANY VALID CHARS EXCEPT DASHES AND SPACES
-    #   Connections must link ONLY PREVIOUSLY DEFINED ZONES using connection: <zone1>-<zone2> [metadata]
-    #   The same connection MUST NOT APPEAR MORE THAN ONCE: a-b and b-a are considered duplicates
-    #   Any metadata (zone or conn) block must be syntactically valid
-    #   Zone types must be one of: normal, blocked, restricted, priority. Any invalid type must raise a parsing error.
-    #   Capacity values (max_drones, max_link_cap) must be positive ints.
-    #   Any other parsing error must stop the program and return a clear error message indicating the line and cause
+    # Implementation of dijkstra to get the minimum possible # of turns
+    # to get one drone from source to sink
+    def run_dijkstra(
+            self,
+            reverse: bool = False
+            ) -> tuple[dict[str, int], dict[str, str | None], int]:
+        # From start, we want to visit each neighbor, set tentative values
+        # for cost to get there.
+        # Then visit new neighbors, in order of the min-heap (least cost guess)
+        inf: int = 10 ** 9
+        dist: dict[str, int] = {self.start_hub: 0}
+        parent: dict[str, str | None] = {self.start_hub: None}
+        settled: set[str] = set()
 
-    # Implementation of dijkstra to get the minimum possible # of turns to get one drone from source to sink
-    def run_dijkstra(self, reverse: bool = False) -> tuple[dict[str, int], dict[str, str | None], int]: 
-       # From start, we want to visit each neighbor, set tentative values for cost to get there. 
-       # Then visit new neighbors, in order of the min-heap (least cost guess)
-       inf: int = 10 ** 9
-       dist: dict[str, int] = {self.start_hub: 0}
-       parent: dict[str, str | None] = {self.start_hub: None}
-       settled: set[str] = set()
+        heap: list[tuple[int, str]] = [(0, self.start_hub)]
 
-       heap: list[tuple[int, str]] = [(0, self.start_hub)]
+        while heap:
+            d, zone = heapq.heappop(heap)
 
-       while heap:
-           d, zone = heapq.heappop(heap)
+            if zone in settled:
+                continue
+            settled.add(zone)
 
-           if zone in settled:
-               continue
-           settled.add(zone)
+            if zone == self.end_hub:
+                break
 
-           if zone == self.end_hub:
-               break
+            for nb in self.hubs[zone].conns:
+                if self.hubs[nb].metadata.zone == ZoneType.BLOCKED or nb in settled:
+                    continue
 
-           for nb in self.hubs[zone].conns:
-               if self.hubs[nb].metadata.zone == ZoneType.BLOCKED or nb in settled:
-                   continue
+                entd = zone if reverse else nb
+                cost = 2 if self.hubs[entd].metadata.zone == ZoneType.RESTRICTED else 1
+                new_d = d + cost
 
-               entered = zone if reverse else nb
-               cost = 2 if self.hubs[entered].metadata.zone == ZoneType.RESTRICTED else 1
-               new_d = d + cost
+                if new_d < dist.get(nb, inf):
+                    dist[nb] = new_d
+                    parent[nb] = zone
+                    heapq.heappush(heap, (new_d, nb))
 
-               if new_d < dist.get(nb, inf):
-                   dist[nb] = new_d
-                   parent[nb] = zone
-                   heapq.heappush(heap, (new_d, nb))
-
-       return dist, parent, dist[self.end_hub]
+        return dist, parent, dist[self.end_hub]
 
     @classmethod
     def _rebuild_path(cls, parent: dict[str, str | None], target: str) -> list[str]:
@@ -218,7 +222,6 @@ class Map(BaseModel):
             path.append(node)
             node = parent.get(node)
         return path[::-1]
-
 
     @classmethod
     def get_from_file(cls, path: str) -> "Map":
@@ -252,15 +255,19 @@ class Map(BaseModel):
                         )
                 except ValueError:
                     raise Exception(
-                        f"Error: Line #{i} -> Error parsing nb_drones: {line.split(':')[1]}"
+                        f"Error: Line #{i} -> Error parsing nb_drones:"
+                        f" {line.split(':')[1]}"
                     )
             elif line.lstrip().startswith("start_hub:"):
                 if start_hub:
-                    raise Exception(f"Error: Line #{i} -> Multiple start_hubs defined.")
+                    raise Exception(
+                        f"Error: Line #{i} -> Multiple start_hubs defined."
+                    )
                 start_hub = Hub._parse_hub(line.split(":")[1].strip(), i)
                 if start_hub.name in hubs:
                     raise Exception(
-                        f"Error: Line #{i} -> start_hub shares name with already existing hub {start_hub.name}"
+                        f"Error: Line #{i} -> start_hub shares name with already"
+                        f" existing hub {start_hub.name}"
                     )
                 hubs[start_hub.name] = start_hub
             elif line.lstrip().startswith("end_hub:"):
@@ -269,33 +276,37 @@ class Map(BaseModel):
                 end_hub = Hub._parse_hub(line.split(":")[1].strip(), i)
                 if end_hub.name in hubs:
                     raise Exception(
-                        f"Error: Line #{i} -> end_hub shares name with already existing hub {end_hub.name}"
+                        f"Error: Line #{i} -> end_hub shares name with already"
+                        f" existing hub {end_hub.name}"
                     )
                 hubs[end_hub.name] = end_hub
             elif line.lstrip().startswith("hub:"):
                 hub = Hub._parse_hub(line.split(":")[1].strip(), i)
                 if hub.name in hubs:
                     raise Exception(
-                        f"Error: Line #{i} -> Multiple hubs with name {hub.name} defined"
+                        f"Error: Line #{i} -> Multiple hubs with"
+                        f" name {hub.name} defined"
                     )
                 hubs[hub.name] = hub
             elif line.lstrip().startswith("connection:"):
                 conn = Connection._parse_connection(line.split(":")[1].strip(), i)
                 if conn.h1 not in hubs:
                     raise Exception(
-                        f"Error: Line #{i} -> Connections must link only previously defined zones, {conn.h1} has not yet been defined."
+                        f"Error: Line #{i} -> Connections must link only previously "
+                        f"defined zones, {conn.h1} has not yet been defined."
                     )
                 if conn.h2 not in hubs:
                     raise Exception(
-                        f"Error: Line #{i} -> Connections must link only previously defined zones, {conn.h2} has not yet been defined."
+                        f"Error: Line #{i} -> Connections must link only previously "
+                        f"defined zones, {conn.h2} has not yet been defined."
                     )
                 if conn.h1 == conn.h2:
                     continue
                 key = frozenset((conn.h1, conn.h2))
                 if key in seen_conns:
                     raise Exception(
-                        f"Error: Line #{i} -> Duplicate connection {conn.h1}-{conn.h2} "
-                        f"(first defined on line #{seen_conns[key]}"
+                        f"Error: Line #{i} -> Duplicate connection {conn.h1}-{conn.h2}"
+                        f" (first defined on line #{seen_conns[key]}"
                     )
                 seen_conns[key] = i
                 conns.append(conn)
@@ -324,12 +335,12 @@ class Map(BaseModel):
         )
 
 
-def main():
+def main() -> None:
     try:
         mp = Map.get_from_file("./maps/challenger/01_the_impossible_dream.txt")
         mp.display()
         _, parent, cost = mp.run_dijkstra()
-        shortest_path = Map._rebuild_path(parent, mp.end_hub) 
+        shortest_path = Map._rebuild_path(parent, mp.end_hub)
         print(f"The cost from source to sink is {cost}")
         for zone in shortest_path:
             print(f"->{zone}", end="")
