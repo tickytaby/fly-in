@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.13.5",
-    "pytest>=9.1.1",
 ]
 
 [tool.pytest.ini_options]
@@ -17,6 +16,7 @@ testpaths = ["tests"]
 dev = [
     "flake8>=7.4.1",
     "mypy>=2.3.1",
+    "pytest>=9.1.1",
 ]
 
 [tool.mypy]

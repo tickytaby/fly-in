@@ -49,10 +49,14 @@ class SSPSolver:
     def solve(cls, mp: Map, verbose: bool = False) -> "SSPSolver":
         """Solve `mp` and return a solver whose schedule is validated.
 
-        The flow model cannot stop two drones from crossing a link in
-        opposite directions when one of them enters a restricted zone.
-        If the validator finds such a crossing, that move is cut from
-        the graph and everything is solved again.
+        The flow model gives each direction of a link its own capacity,
+        so it does not formally forbid two drones crossing a link in
+        opposite directions in the same turn. Min-cost flow avoids it in
+        practice: drones are interchangeable, and both waiting reaches
+        the same state for free. It was never observed on the provided
+        maps or ~20k random ones. As a safety net, if the validator
+        finds such a crossing, the weaker direction is cut from the
+        graph and everything is solved again.
 
         Raises:
             Exception: if the end is unreachable or no valid schedule
@@ -78,7 +82,9 @@ class SSPSolver:
         try:
             _, _, cost = self.map.run_dijkstra()
         except KeyError:
-            raise Exception(f"Error: end zone '{self.map.end_hub}' is unreachable")
+            raise Exception(
+                    f"Error: end zone '{self.map.end_hub}' is unreachable"
+                    )
         return cost
 
     def _augment_once(self) -> bool:
@@ -97,7 +103,8 @@ class SSPSolver:
             self.cancellations += 1
             if self.verbose:
                 undone = ", ".join(
-                    f"{g.describe(e.to)}->{g.describe(e.tail)}" for e in backward
+                    f"{g.describe(e.to)}->{g.describe(e.tail)}"
+                    for e in backward
                 )
                 print(f"[ssp] drone {self.scheduled + 1} cancels: {undone}")
         g.augment(path)
@@ -117,7 +124,9 @@ class SSPSolver:
                 self.scheduled += 1
                 continue
             if self.scheduled == 0 and g.horizon > limit:
-                raise Exception(f"Error: end zone '{self.map.end_hub}' is unreachable")
+                raise Exception(
+                        f"Error: end zone '{self.map.end_hub}' is unreachable"
+                        )
             g.add_layer(g.horizon + 1)
             if self.verbose:
                 print(f"[ssp] horizon grown to {g.horizon}")
@@ -147,7 +156,9 @@ class SSPSolver:
         for e in self.graph.adj[node]:
             if e.original and remaining.get(e.idx, 0) > 0:
                 return e
-        raise RuntimeError(f"flow decomposition stuck at {self.graph.describe(node)}")
+        raise RuntimeError(
+                f"flow decomposition stuck at {self.graph.describe(node)}"
+                )
 
     def _record(self, node: int, positions: list[str]) -> None:
         """Append the position a node stands for, if it opens a turn."""

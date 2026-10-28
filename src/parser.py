@@ -59,8 +59,8 @@ class Connection(BaseModel):
             max_link_cap = int(metadata[1])
             if max_link_cap <= 0:
                 raise Exception(
-                    f"Error: Line #{line} -> max capacity value must be positive"
-                    f" int, got {ls[1]}"
+                    f"Error: Line #{line} -> max capacity value must be"
+                    f" positive int, got {ls[1]}"
                 )
         except ValueError:
             raise Exception(
@@ -90,16 +90,20 @@ class Hub(BaseModel):
             cleaned = [tuple(m.split("=", 1)) for m in met]
         except Exception:
             raise Exception(
-                f"Error: Line #{line} -> expected [key=val,..] for metadata, got {meta}"
+                    f"Error: Line #{line} -> expected [key=val,..] for"
+                    f" metadata, got {meta}"
             )
         mid: dict[str, Any] = {}
         for item in cleaned:
             if len(item) != 2:
                 raise Exception(
-                    f"Error: Line #{line} -> expecting key=value format got {item}"
+                    f"Error: Line #{line} -> expecting key=value"
+                    f" format got {item}"
                 )
             if item[0] in mid:
-                raise Exception(f"Error: Line #{line} -> duplicate key for {item[0]}")
+                raise Exception(
+                        f"Error: Line #{line} -> duplicate key for {item[0]}"
+                        )
             if item[0] not in allowed_keys:
                 raise Exception(
                     f"Error: Line #{line} -> {item[0]} not in allowed metadata"
@@ -111,8 +115,8 @@ class Hub(BaseModel):
                     continue
                 except Exception:
                     raise Exception(
-                        f"Error: Line #{line} -> {item[1]} it not a valid Zone Type "
-                        "('normal', 'blocked', 'restricted', 'priority')"
+                        f"Error: Line #{line} -> {item[1]} it not a valid Zone"
+                        " Type ('normal', 'blocked', 'restricted', 'priority')"
                     )
             if item[0] == "max_drones":
                 try:
@@ -141,7 +145,8 @@ class Hub(BaseModel):
             name = ls[0]
             if "-" in name:
                 raise Exception(
-                    f"Error: Line #{line} -> zone name '{name}' must not contain dashes"
+                    f"Error: Line #{line} -> zone name '{name}' must not"
+                    " contain dashes"
                 )
             x = int(ls[1])
             y = int(ls[2])
@@ -150,7 +155,12 @@ class Hub(BaseModel):
 
         if len(ls) == 3:
             return Hub(name=name, x=x, y=y, metadata=HubMetadata())
-        return Hub(name=name, x=x, y=y, metadata=Hub._parse_metadata(ls[-1], line))
+        return Hub(
+                name=name,
+                x=x,
+                y=y,
+                metadata=Hub._parse_metadata(ls[-1], line)
+            )
 
 
 class Map(BaseModel):
@@ -200,11 +210,12 @@ class Map(BaseModel):
                 break
 
             for nb in self.hubs[zone].conns:
-                if self.hubs[nb].metadata.zone == ZoneType.BLOCKED or nb in settled:
+                if (self.hubs[nb].metadata.zone == ZoneType.BLOCKED
+                        or nb in settled):
                     continue
-
                 entd = zone if reverse else nb
-                cost = 2 if self.hubs[entd].metadata.zone == ZoneType.RESTRICTED else 1
+                cost = 2 if (self.hubs[entd].metadata.zone
+                             == ZoneType.RESTRICTED) else 1
                 new_d = d + cost
 
                 if new_d < dist.get(nb, inf):
@@ -215,7 +226,11 @@ class Map(BaseModel):
         return dist, parent, dist[self.end_hub]
 
     @classmethod
-    def _rebuild_path(cls, parent: dict[str, str | None], target: str) -> list[str]:
+    def _rebuild_path(
+            cls,
+            parent: dict[str, str | None],
+            target: str
+            ) -> list[str]:
         path: list[str] = []
         node: str | None = target
         while node is not None:
@@ -251,7 +266,8 @@ class Map(BaseModel):
                     nb_drones = int(line.split(":")[1].strip())
                     if nb_drones <= 0:
                         raise Exception(
-                            f"Error: Line #{i} -> nb_drones must be a positive int"
+                            f"Error: Line #{i} -> nb_drones must"
+                            " be a positive int"
                         )
                 except ValueError:
                     raise Exception(
@@ -266,13 +282,15 @@ class Map(BaseModel):
                 start_hub = Hub._parse_hub(line.split(":")[1].strip(), i)
                 if start_hub.name in hubs:
                     raise Exception(
-                        f"Error: Line #{i} -> start_hub shares name with already"
-                        f" existing hub {start_hub.name}"
+                        f"Error: Line #{i} -> start_hub shares name with "
+                        f"already existing hub {start_hub.name}"
                     )
                 hubs[start_hub.name] = start_hub
             elif line.lstrip().startswith("end_hub:"):
                 if end_hub:
-                    raise Exception(f"Error: Line #{i} -> Multiple end_hubs defined.")
+                    raise Exception(
+                            f"Error: Line #{i} -> Multiple end_hubs defined."
+                            )
                 end_hub = Hub._parse_hub(line.split(":")[1].strip(), i)
                 if end_hub.name in hubs:
                     raise Exception(
@@ -289,24 +307,28 @@ class Map(BaseModel):
                     )
                 hubs[hub.name] = hub
             elif line.lstrip().startswith("connection:"):
-                conn = Connection._parse_connection(line.split(":")[1].strip(), i)
+                conn = Connection._parse_connection(
+                        line.split(":")[1].strip(), i
+                        )
                 if conn.h1 not in hubs:
                     raise Exception(
-                        f"Error: Line #{i} -> Connections must link only previously "
-                        f"defined zones, {conn.h1} has not yet been defined."
+                        f"Error: Line #{i} -> Connections must link only "
+                        f"previously defined zones, {conn.h1} has"
+                        " not yet been defined."
                     )
                 if conn.h2 not in hubs:
                     raise Exception(
-                        f"Error: Line #{i} -> Connections must link only previously "
-                        f"defined zones, {conn.h2} has not yet been defined."
+                        f"Error: Line #{i} -> Connections must link only "
+                        f"previously defined zones, {conn.h2} has"
+                        " not yet been defined."
                     )
                 if conn.h1 == conn.h2:
                     continue
                 key = frozenset((conn.h1, conn.h2))
                 if key in seen_conns:
                     raise Exception(
-                        f"Error: Line #{i} -> Duplicate connection {conn.h1}-{conn.h2}"
-                        f" (first defined on line #{seen_conns[key]}"
+                        f"Error: Line #{i} -> Duplicate connection {conn.h1}"
+                        f"-{conn.h2} (first defined on line #{seen_conns[key]}"
                     )
                 seen_conns[key] = i
                 conns.append(conn)

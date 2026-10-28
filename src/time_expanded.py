@@ -105,7 +105,9 @@ class TimeExpandedGraph(FlowNetwork):
         for z in self.zones:
             prev = self._exit(z, t - 1)
             if prev is not None:
-                self.add_edge(prev, self._entry(z, t), self.unlimited, WAIT_COST)
+                self.add_edge(
+                        prev, self._entry(z, t), self.unlimited, WAIT_COST
+                        )
 
         for u, v, link_cap in self.moves:
             if not self._is_restricted(v):
@@ -114,7 +116,12 @@ class TimeExpandedGraph(FlowNetwork):
                     continue
                 prev = self._exit(u, t - 1)
                 if prev is not None:
-                    self.add_edge(prev, self._entry(v, t), link_cap, self._move_cost(v))
+                    self.add_edge(
+                            prev,
+                            self._entry(v, t),
+                            link_cap,
+                            self._move_cost(v)
+                            )
             elif t >= 2:
                 # Restricted move: leave u at t-2, sit on the
                 # connection at t-1, reach v at t.
@@ -125,7 +132,10 @@ class TimeExpandedGraph(FlowNetwork):
                     transit = self.node(("transit", u, v, t - 1))
                     self.add_edge(prev, transit, link_cap, RESTRICTED_LEG_COST)
                     self.add_edge(
-                        transit, self._entry(v, t), link_cap, RESTRICTED_LEG_COST
+                        transit,
+                        self._entry(v, t),
+                        link_cap,
+                        RESTRICTED_LEG_COST
                     )
 
     def build(self, horizon: int) -> None:

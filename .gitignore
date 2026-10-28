@@ -7,6 +7,6 @@ wheels/
 *.egg-info
 .flake8
 uv.lock
-
+/tests
 # Virtual environments
 .venv

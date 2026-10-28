@@ -16,7 +16,14 @@ class Edge:
 
     __slots__ = ("idx", "to", "cap", "cost", "partner", "original")
 
-    def __init__(self, idx: int, to: int, cap: int, cost: int, original: bool) -> None:
+    def __init__(
+            self,
+            idx: int,
+            to: int,
+            cap: int,
+            cost: int,
+            original: bool
+            ) -> None:
         self.idx: int = idx
         self.to: int = to
         self.cap: int = cap
